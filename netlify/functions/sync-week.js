@@ -55,9 +55,9 @@ async function fetchTeamSchedule(teamId, season) {
 
 async function last3Meetings(teamId, oppAbbr) {
   const seasons = [YEAR - 1, YEAR - 2, YEAR - 3, YEAR - 4, YEAR - 5];
+  const schedules = await Promise.all(seasons.map((season) => fetchTeamSchedule(teamId, season)));
   const results = [];
-  for (const season of seasons) {
-    const d = await fetchTeamSchedule(teamId, season);
+  for (const d of schedules) {
     if (!d?.events) continue;
     for (const e of d.events) {
       const comp = e.competitions?.[0];
@@ -95,38 +95,39 @@ async function last3Meetings(teamId, oppAbbr) {
 
 async function buildWeek(week) {
   const d = await fetchScoreboard(week);
-  const games = [];
-  for (const e of d.events || []) {
-    const comp = e.competitions[0];
-    const home = comp.competitors.find((c) => c.homeAway === "home");
-    const away = comp.competitors.find((c) => c.homeAway === "away");
-    const odds = comp.odds?.[0];
-    const link =
-      e.links?.find((l) => l.rel?.includes("summary") || l.rel?.includes("event"))?.href ||
-      e.links?.[0]?.href ||
-      "";
-    const completed = comp.status?.type?.completed || false;
-    let winnerAbbr = null;
-    if (home.winner === true) winnerAbbr = home.team.abbreviation;
-    else if (away.winner === true) winnerAbbr = away.team.abbreviation;
-    const last3 = await last3Meetings(home.team.id, away.team.abbreviation);
-    games.push({
-      id: e.id,
-      kickoff: e.date,
-      homeAbbr: home.team.abbreviation,
-      awayAbbr: away.team.abbreviation,
-      homeName: home.team.displayName,
-      awayName: away.team.displayName,
-      spreadDetails: odds?.details ?? null,
-      overUnder: odds?.overUnder ?? null,
-      espnLink: link,
-      last3,
-      status: completed ? "final" : "scheduled",
-      homeScore: completed ? Number(home.score) : null,
-      awayScore: completed ? Number(away.score) : null,
-      winnerAbbr,
-    });
-  }
+  const games = await Promise.all(
+    (d.events || []).map(async (e) => {
+      const comp = e.competitions[0];
+      const home = comp.competitors.find((c) => c.homeAway === "home");
+      const away = comp.competitors.find((c) => c.homeAway === "away");
+      const odds = comp.odds?.[0];
+      const link =
+        e.links?.find((l) => l.rel?.includes("summary") || l.rel?.includes("event"))?.href ||
+        e.links?.[0]?.href ||
+        "";
+      const completed = comp.status?.type?.completed || false;
+      let winnerAbbr = null;
+      if (home.winner === true) winnerAbbr = home.team.abbreviation;
+      else if (away.winner === true) winnerAbbr = away.team.abbreviation;
+      const last3 = await last3Meetings(home.team.id, away.team.abbreviation);
+      return {
+        id: e.id,
+        kickoff: e.date,
+        homeAbbr: home.team.abbreviation,
+        awayAbbr: away.team.abbreviation,
+        homeName: home.team.displayName,
+        awayName: away.team.displayName,
+        spreadDetails: odds?.details ?? null,
+        overUnder: odds?.overUnder ?? null,
+        espnLink: link,
+        last3,
+        status: completed ? "final" : "scheduled",
+        homeScore: completed ? Number(home.score) : null,
+        awayScore: completed ? Number(away.score) : null,
+        winnerAbbr,
+      };
+    })
+  );
   games.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   return { week, updatedAt: new Date().toISOString(), games };
 }
@@ -180,14 +181,10 @@ export default async () => {
   const cw = currentWeekIndex(now);
 
   const toGrade = [cw - 1, cw].filter((w) => w >= 1 && w <= 18);
-  for (const w of toGrade) {
-    await gradeWeek(store, w);
-  }
+  await Promise.all(toGrade.map((w) => gradeWeek(store, w)));
 
   const toSeed = [cw, cw + 1].filter((w) => w >= 1 && w <= 18);
-  for (const w of toSeed) {
-    await seedWeekIfMissing(store, w);
-  }
+  await Promise.all(toSeed.map((w) => seedWeekIfMissing(store, w)));
 
   return new Response("ok");
 };
