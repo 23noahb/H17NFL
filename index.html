@@ -678,13 +678,21 @@ document.getElementById('pinForm').addEventListener('submit', async (e)=>{
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ user: name, pin }),
     });
-    const data = await res.json().catch(()=>({}));
-    if(res.ok && data.ok){
-      savePin(name, pin);
-      finishSelectBuddy(name);
-    } else {
+    if(res.status === 401){
       errEl.textContent = 'Incorrect PIN for ' + name + '. Try again.';
       errEl.style.display = 'block';
+    } else if(!res.ok){
+      errEl.textContent = 'Server error (' + res.status + ') — the PIN check isn\'t working right now. Try again shortly.';
+      errEl.style.display = 'block';
+    } else {
+      const data = await res.json().catch(()=>({}));
+      if(data.ok){
+        savePin(name, pin);
+        finishSelectBuddy(name);
+      } else {
+        errEl.textContent = 'Incorrect PIN for ' + name + '. Try again.';
+        errEl.style.display = 'block';
+      }
     }
   }catch(err){
     errEl.textContent = 'Could not verify PIN — check your connection.';
