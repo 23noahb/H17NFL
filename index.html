@@ -626,11 +626,9 @@ function savePin(name, pin){ localStorage.setItem('h17_pin_' + name, pin); }
 function clearSavedPin(name){ localStorage.removeItem('h17_pin_' + name); }
 
 function selectBuddy(name){
-  if(getSavedPin(name)){
-    finishSelectBuddy(name);
-  } else {
-    openPinPrompt(name);
-  }
+  // Switching who's highlighted never needs a PIN — only actually saving a
+  // pick under a name does (see pick()). Looking is free; touching isn't.
+  finishSelectBuddy(name);
 }
 
 function finishSelectBuddy(name){
@@ -733,10 +731,16 @@ async function fetchJson(url, opts){
 }
 
 async function refreshWeekData(week){
-  const userParam = currentUser ? '&user=' + encodeURIComponent(currentUser) : '';
+  // Only claim to be "you" server-side if this device actually holds your
+  // verified PIN — otherwise the server treats you like anyone else and
+  // keeps future picks hidden, even for a name you've merely switched to.
+  const verifiedPin = currentUser ? getSavedPin(currentUser) : null;
+  const identityParam = verifiedPin
+    ? '&user=' + encodeURIComponent(currentUser) + '&pin=' + encodeURIComponent(verifiedPin)
+    : '';
   const [gamesDoc, picksDoc] = await Promise.all([
     fetchJson('/api/games?week=' + week),
-    fetchJson('/api/picks?week=' + week + userParam),
+    fetchJson('/api/picks?week=' + week + identityParam),
   ]);
   weekGames = gamesDoc.games || [];
   allPicksForWeek = picksDoc || {};
