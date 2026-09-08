@@ -237,6 +237,24 @@ body{
 }
 .who-btn:hover{border-color:var(--accent);color:var(--accent);}
 
+.pin-input{
+  width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:10px;padding:12px 14px;font-size:16px;color:var(--text);font-family:'Inter';
+  text-align:center;letter-spacing:0.08em;
+}
+.pin-input:focus{outline:none;border-color:var(--accent);}
+.pin-error{color:var(--danger);font-size:12.5px;margin-top:8px;}
+.pin-actions{display:flex;gap:10px;margin-top:16px;}
+.pin-cancel{
+  flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+  padding:11px;font-family:'Inter';font-weight:600;font-size:13px;color:var(--text-dim);cursor:pointer;
+}
+.pin-submit{
+  flex:1;background:var(--accent);border:none;border-radius:10px;
+  padding:11px;font-family:'Inter';font-weight:700;font-size:13px;color:#1a1200;cursor:pointer;
+}
+.pin-cancel:hover{color:var(--text);}
+
 .lb-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
 .lb-head{padding:18px 20px 4px;}
 .lb-head h2{font-family:'Oswald';text-transform:uppercase;font-size:18px;margin:0 0 4px;}
@@ -312,6 +330,21 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
     <h2>Who's Picking?</h2>
     <p>Pick your name to start making selections</p>
     <div class="who-grid" id="whoGrid"></div>
+  </div>
+</div>
+
+<div class="who-overlay" id="pinOverlay" style="display:none;">
+  <div class="who-card">
+    <h2 id="pinTitle">Enter Your PIN</h2>
+    <p id="pinSub">First time as this name? Make one up now — you'll use it every time.</p>
+    <form id="pinForm">
+      <input type="password" inputmode="numeric" autocomplete="off" id="pinInput" placeholder="PIN (4+ characters)" class="pin-input" minlength="4" maxlength="20" required>
+      <div class="pin-error" id="pinError" style="display:none;"></div>
+      <div class="pin-actions">
+        <button type="button" class="pin-cancel" id="pinCancel">Cancel</button>
+        <button type="submit" class="pin-submit">Continue</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -571,13 +604,7 @@ function buildBuddyRow(){
     const b = document.createElement('button');
     b.className = 'buddy-btn buddy-' + name.toLowerCase() + (name===currentUser ? ' active' : '');
     b.textContent = name;
-    b.onclick = ()=>{
-      currentUser = name;
-      localStorage.setItem('h17_user', name);
-      document.getElementById('whoOverlay').style.display = 'none';
-      buildBuddyRow();
-      loadWeek(currentWeek);
-    };
+    b.onclick = ()=>selectBuddy(name);
     row.appendChild(b);
   });
 }
@@ -589,16 +616,82 @@ function buildWhoGrid(){
     const b = document.createElement('button');
     b.className = 'who-btn';
     b.textContent = name;
-    b.onclick = ()=>{
-      currentUser = name;
-      localStorage.setItem('h17_user', name);
-      document.getElementById('whoOverlay').style.display = 'none';
-      buildBuddyRow();
-      loadWeek(currentWeek);
-    };
+    b.onclick = ()=>selectBuddy(name);
     grid.appendChild(b);
   });
 }
+
+function getSavedPin(name){ return localStorage.getItem('h17_pin_' + name); }
+function savePin(name, pin){ localStorage.setItem('h17_pin_' + name, pin); }
+function clearSavedPin(name){ localStorage.removeItem('h17_pin_' + name); }
+
+function selectBuddy(name){
+  if(getSavedPin(name)){
+    finishSelectBuddy(name);
+  } else {
+    openPinPrompt(name);
+  }
+}
+
+function finishSelectBuddy(name){
+  currentUser = name;
+  localStorage.setItem('h17_user', name);
+  document.getElementById('whoOverlay').style.display = 'none';
+  document.getElementById('pinOverlay').style.display = 'none';
+  buildBuddyRow();
+  loadWeek(currentWeek);
+}
+
+let pinPromptName = null;
+
+function openPinPrompt(name){
+  pinPromptName = name;
+  document.getElementById('pinTitle').textContent = 'PIN for ' + name;
+  document.getElementById('pinSub').textContent = "First time as " + name + "? Make one up now — you'll use it every time on this device.";
+  document.getElementById('pinError').style.display = 'none';
+  document.getElementById('pinInput').value = '';
+  document.getElementById('pinOverlay').style.display = 'flex';
+  setTimeout(()=>document.getElementById('pinInput').focus(), 50);
+}
+
+document.getElementById('pinCancel').addEventListener('click', ()=>{
+  document.getElementById('pinOverlay').style.display = 'none';
+  pinPromptName = null;
+});
+
+document.getElementById('pinForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const pin = document.getElementById('pinInput').value;
+  const name = pinPromptName;
+  const errEl = document.getElementById('pinError');
+  if(!name || pin.length < 4){
+    errEl.textContent = 'PIN must be at least 4 characters.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  const submitBtn = e.target.querySelector('.pin-submit');
+  submitBtn.disabled = true;
+  try{
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ user: name, pin }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(res.ok && data.ok){
+      savePin(name, pin);
+      finishSelectBuddy(name);
+    } else {
+      errEl.textContent = 'Incorrect PIN for ' + name + '. Try again.';
+      errEl.style.display = 'block';
+    }
+  }catch(err){
+    errEl.textContent = 'Could not verify PIN — check your connection.';
+    errEl.style.display = 'block';
+  }
+  submitBtn.disabled = false;
+});
 
 function buildWeekRow(){
   const row = document.getElementById('weekRow');
@@ -632,9 +725,10 @@ async function fetchJson(url, opts){
 }
 
 async function refreshWeekData(week){
+  const userParam = currentUser ? '&user=' + encodeURIComponent(currentUser) : '';
   const [gamesDoc, picksDoc] = await Promise.all([
     fetchJson('/api/games?week=' + week),
-    fetchJson('/api/picks?week=' + week),
+    fetchJson('/api/picks?week=' + week + userParam),
   ]);
   weekGames = gamesDoc.games || [];
   allPicksForWeek = picksDoc || {};
@@ -678,17 +772,26 @@ async function pick(gameId, abbr){
   if(!currentUser){ document.getElementById('whoOverlay').style.display = 'flex'; return; }
   const game = weekGames.find(g=>g.id===gameId);
   if(!game || isLocked(game)) return;
+  const pin = getSavedPin(currentUser);
+  if(!pin){ openPinPrompt(currentUser); return; }
   const next = Object.assign({}, myPicks);
   if(next[gameId] === abbr){ delete next[gameId]; } else { next[gameId] = abbr; }
   myPicks = next;
   allPicksForWeek[currentUser] = next;
   renderGames();
   try{
-    await fetchJson('/api/picks', {
+    const res = await fetch('/api/picks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ week: currentWeek, user: currentUser, picks: next }),
+      body: JSON.stringify({ week: currentWeek, user: currentUser, picks: next, pin }),
     });
+    if(res.status === 401){
+      clearSavedPin(currentUser);
+      showToast('Your saved PIN no longer matches — enter it again');
+      openPinPrompt(currentUser);
+      return;
+    }
+    if(!res.ok) throw new Error('save failed: ' + res.status);
   }catch(err){
     console.error(err);
     showToast('Could not save pick — check your connection');
