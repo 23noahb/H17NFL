@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { verifyOrClaimPin } from "./lib/auth.js";
+import { verifyOrClaimPin, verifyPinReadOnly } from "./lib/auth.js";
 
 const BUDDIES = ["Joe", "Loop", "Noah", "Tom"];
 
@@ -15,7 +15,11 @@ export default async (req) => {
         headers: { "content-type": "application/json" },
       });
     }
-    const requester = url.searchParams.get("user") || "";
+    const requesterName = url.searchParams.get("user") || "";
+    const requesterPin = url.searchParams.get("pin") || "";
+    const requesterVerified =
+      BUDDIES.includes(requesterName) && (await verifyPinReadOnly(store, requesterName, requesterPin));
+    const requester = requesterVerified ? requesterName : "";
 
     const gamesDoc = await store.get(`games/week-${week}`, { type: "json" });
     const now = Date.now();
