@@ -316,7 +316,7 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
     <div class="lb-wrap">
       <div class="lb-head">
         <h2>Season Standings</h2>
-        <p id="lbSub">Straight-up picks, correct calls out of games graded</p>
+        <p id="lbSub">Straight-up picks, shown as record (wins-losses) across games graded</p>
       </div>
       <div class="lb-scroll">
         <table class="lb" id="lbTable"></table>
@@ -951,9 +951,9 @@ async function renderLeaderboard(){
     html += '<tr class="' + (i===0 && r.total>0 ? 'leader' : '') + '"><td class="rank">' + (i+1) + '</td><td class="name">' + r.name + '</td>';
     activeWeeks.forEach(w=>{
       const cell = r.perWeek[w];
-      html += '<td>' + (cell ? cell.correct + '/' + cell.of : '–') + '</td>';
+      html += '<td>' + (cell ? cell.correct + '-' + (cell.of - cell.correct) : '–') + '</td>';
     });
-    html += '<td class="total">' + r.total + '/' + r.graded + '</td></tr>';
+    html += '<td class="total">' + r.total + '-' + (r.graded - r.total) + '</td></tr>';
   });
   html += '</tbody>';
   table.innerHTML = html;
@@ -961,7 +961,7 @@ async function renderLeaderboard(){
   if(!activeWeeks.length){
     document.getElementById('lbSub').textContent = 'No games graded yet — check back after Week 1 wraps up';
   } else {
-    document.getElementById('lbSub').textContent = 'Straight-up picks, correct calls out of games graded';
+    document.getElementById('lbSub').textContent = 'Straight-up picks, shown as record (wins-losses) across games graded';
   }
 }
 
