@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { refreshLines } from "./lib/espn.js";
 
 const YEAR = 2026;
 
@@ -149,15 +150,14 @@ async function gradeWeek(store, week) {
     let winnerAbbr = null;
     if (home.winner === true) winnerAbbr = home.team.abbreviation;
     else if (away.winner === true) winnerAbbr = away.team.abbreviation;
-    const odds = comp.odds?.[0];
+    // Lines are handled by refreshLines() (pregame only), not here, so a live
+    // in-game line never overwrites the one people actually picked against.
     return {
       ...g,
       status: completed ? "final" : "scheduled",
       homeScore: completed ? Number(home.score) : null,
       awayScore: completed ? Number(away.score) : null,
       winnerAbbr,
-      spreadDetails: odds?.details ?? g.spreadDetails,
-      overUnder: odds?.overUnder ?? g.overUnder,
     };
   });
 
@@ -176,7 +176,7 @@ async function seedWeekIfMissing(store, week) {
 }
 
 export default async () => {
-  const store = getStore("h17-nfl");
+  const store = getStore({ name: "h17-nfl", consistency: "strong" });
   const now = Date.now();
   const cw = currentWeekIndex(now);
 
@@ -185,6 +185,16 @@ export default async () => {
 
   const toSeed = [cw, cw + 1].filter((w) => w >= 1 && w <= 18);
   await Promise.all(toSeed.map((w) => seedWeekIfMissing(store, w)));
+
+  // Run after grading/seeding (not alongside) so the two never write the same
+  // week's document at the same moment.
+  for (const w of toSeed) {
+    try {
+      await refreshLines(store, w);
+    } catch (err) {
+      console.error("refreshLines failed", w, err);
+    }
+  }
 
   return new Response("ok");
 };

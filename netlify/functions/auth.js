@@ -24,7 +24,7 @@ export default async (req) => {
     });
   }
 
-  const store = getStore("h17-nfl");
+  const store = getStore({ name: "h17-nfl", consistency: "strong" });
   const result = await verifyOrClaimPin(store, user, pin);
   return new Response(JSON.stringify(result), {
     status: result.ok ? 200 : 401,

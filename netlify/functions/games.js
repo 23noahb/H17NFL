@@ -9,7 +9,7 @@ export default async (req) => {
       headers: { "content-type": "application/json" },
     });
   }
-  const store = getStore("h17-nfl");
+  const store = getStore({ name: "h17-nfl", consistency: "strong" });
   const data = await store.get(`games/week-${week}`, { type: "json" });
   return new Response(JSON.stringify(data || { week, games: [] }), {
     headers: { "content-type": "application/json", "cache-control": "no-store" },
