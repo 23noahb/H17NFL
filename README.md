@@ -8,7 +8,11 @@ A weekly NFL pick'em site for the group, built as a static frontend + Netlify Fu
 - Click a team to pick them; the loser greys out. Picks save automatically per person (Joe / Loop / Noah / Tom, chosen from the header). Each name is protected by a PIN you set the first time you use it — no full account system, just enough to stop someone else editing your picks.
 - Other people's picks for a given game stay hidden — server-side, not just visually — until that game's kickoff time passes, so nobody can copy off someone else before locking in their own pick. Your own picks are always visible to you.
 - "Copy My Picks" copies that week's picks as a short list of team abbreviations.
-- A season-long leaderboard tallies correct picks per week automatically once games go final.
+- A season-long leaderboard shows each person's record (wins-losses) per week and overall, updated automatically once games go final.
+- A **By Team** tab shows every team's record for each person: how Noah has done every time he picked the Lions, and so on. Tap a column to sort.
+- **Guest view:** anyone can look without picking. "View as guest" in the name picker, or share the link from the button at the bottom of the page (`/?guest=1`). Guests can see games, the leaderboard and the team records, but can't pick or change anything, and still only see other people's picks after kickoff.
+- Lines (spread / over-under) refresh every morning with the daily sync, plus an extra refresh on **Thursday and Sunday mornings** (~8am ET). Each refresh only touches games that haven't kicked off, so a live in-game line never replaces the one people picked against. The page shows when lines were last updated.
+- Picks save one at a time, in order, with a "Saving… / Saved" indicator. Anything that fails to send stays queued and retries; the server also refuses changes to games that have already kicked off.
 - A scheduled job refreshes data daily: grades finished games and stages the next week's slate, so no one has to update anything by hand.
 
 ## Stack
@@ -18,7 +22,9 @@ A weekly NFL pick'em site for the group, built as a static frontend + Netlify Fu
 - `netlify/functions/games.js` — read one week's games
 - `netlify/functions/picks.js` — read/write a person's picks
 - `netlify/functions/leaderboard.js` — compute season standings
-- `netlify/functions/sync-week.js` — scheduled job (daily) that grades finished games and seeds upcoming weeks from ESPN
+- `netlify/functions/sync-week.js` — scheduled job (daily) that grades finished games, seeds upcoming weeks from ESPN, and refreshes lines
+- `netlify/functions/refresh-lines.js` — scheduled job (Thursday + Sunday mornings) that refreshes spreads/over-unders
+- `netlify/functions/lib/espn.js` — shared ESPN helpers (line refresh, current-week lookup)
 - Data lives in **Netlify Blobs** (`h17-nfl` store) — no external database needed
 
 Everything at the repo's top level (`index.html`, the `.png` files, `netlify.toml`, etc.) gets served as-is — `netlify.toml` sets `publish = "."`. The one folder that has to stay exactly where it is is `netlify/functions/`.
