@@ -255,6 +255,51 @@ body{
 }
 .pin-cancel:hover{color:var(--text);}
 
+.save-state{font-size:12px;font-weight:600;margin-left:10px;color:var(--text-faint);}
+.save-state.saving{color:var(--text-dim);}
+.save-state.saved{color:var(--win);}
+.save-state.error{color:var(--danger);}
+.lines-stamp{font-size:11px;color:var(--text-faint);margin-top:4px;font-variant-numeric:tabular-nums;}
+.lines-stamp:empty{display:none;}
+
+.guest-chip{
+  display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:999px;padding:3px 3px 3px 14px;font-size:13px;font-weight:600;color:var(--text-dim);
+}
+.guest-chip button{
+  border:none;background:var(--surface-3);color:var(--text);font-family:'Inter';font-weight:600;font-size:13px;
+  padding:7px 14px;border-radius:999px;cursor:pointer;
+}
+.guest-chip button:hover{color:var(--accent);}
+.team-btn.readonly{cursor:default;}
+.team-btn.readonly:hover{background:none;}
+.who-guest{
+  width:100%;margin-top:12px;background:none;border:1px dashed var(--border);border-radius:12px;
+  padding:12px 10px;font-family:'Inter';font-weight:600;font-size:13px;color:var(--text-dim);cursor:pointer;
+}
+.who-guest:hover{border-color:var(--text-faint);color:var(--text);}
+.foot{margin-top:36px;display:flex;justify-content:center;}
+.foot button{
+  background:none;border:1px solid var(--border);border-radius:999px;padding:9px 16px;
+  font-family:'Inter';font-weight:600;font-size:12px;color:var(--text-dim);cursor:pointer;
+}
+.foot button:hover{color:var(--text);border-color:var(--text-faint);}
+
+table.tm th.sortable{cursor:pointer;user-select:none;}
+table.tm th.sortable:hover{color:var(--text);}
+table.tm th.sorted{color:var(--accent);}
+table.tm th.me{color:var(--text);}
+table.tm td.team{
+  text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;
+  white-space:nowrap;font-family:'Oswald';font-weight:600;font-size:14px;letter-spacing:0.02em;
+}
+table.tm td.team img{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:10px;}
+table.tm th.team-h{text-align:left;position:sticky;left:0;z-index:2;}
+table.tm td.rec-pos{color:var(--win);background:var(--win-soft);font-weight:700;}
+table.tm td.rec-neg{color:var(--danger);background:color-mix(in srgb, var(--danger) 12%, transparent);font-weight:700;}
+table.tm td.rec-even{color:var(--text);font-weight:700;}
+table.tm td.rec-none{color:var(--text-faint);}
+
 .lb-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
 .lb-head{padding:18px 20px 4px;}
 .lb-head h2{font-family:'Oswald';text-transform:uppercase;font-size:18px;margin:0 0 4px;}
@@ -291,6 +336,7 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
       <div class="view-toggle">
         <button class="view-btn active" data-view="picks">Make Picks</button>
         <button class="view-btn" data-view="leaderboard">Leaderboard</button>
+        <button class="view-btn" data-view="teams">By Team</button>
       </div>
     </div>
   </div>
@@ -300,9 +346,13 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
 <div class="wrap">
   <div id="picksView">
     <div class="subbar">
-      <div style="display:flex;align-items:baseline;">
-        <h2 id="weekTitle">Week 1</h2>
-        <span class="progress" id="progressLabel"></span>
+      <div>
+        <div style="display:flex;align-items:baseline;flex-wrap:wrap;">
+          <h2 id="weekTitle">Week 1</h2>
+          <span class="progress" id="progressLabel"></span>
+          <span class="save-state" id="saveState" aria-live="polite"></span>
+        </div>
+        <div class="lines-stamp" id="linesStamp"></div>
       </div>
       <button class="copy-btn" id="copyBtn" disabled>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
@@ -323,6 +373,22 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
       </div>
     </div>
   </div>
+
+  <div id="teamsView" style="display:none;">
+    <div class="lb-wrap">
+      <div class="lb-head">
+        <h2>Record By Team</h2>
+        <p id="tmSub">How each person has done when picking each team to win. Tap a column to sort.</p>
+      </div>
+      <div class="lb-scroll">
+        <table class="lb tm" id="tmTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot" id="footer">
+    <button id="guestLinkBtn" type="button">Copy view-only guest link</button>
+  </div>
 </div>
 
 <div class="who-overlay" id="whoOverlay">
@@ -330,6 +396,7 @@ table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);
     <h2>Who's Picking?</h2>
     <p>Pick your name to start making selections</p>
     <div class="who-grid" id="whoGrid"></div>
+    <button class="who-guest" id="whoGuestBtn" type="button">Just looking? View as guest</button>
   </div>
 </div>
 
@@ -577,13 +644,29 @@ function defaultWeek(){
   return 18;
 }
 
-let currentUser = localStorage.getItem('h17_user') || null;
+// Guest = view only. A shared "?guest" link is guest for that visit only (it
+// never touches a saved identity); choosing "View as guest" in the picker sticks.
+let guestMode = new URLSearchParams(location.search).has('guest') || localStorage.getItem('h17_guest') === '1';
+let currentUser = guestMode ? null : (localStorage.getItem('h17_user') || null);
 let currentWeek = defaultWeek();
 let currentView = 'picks';
 let weekGames = [];
+let weekLinesAt = null;
 let myPicks = {};
 let allPicksForWeek = {}; // { buddyName: {gameId: abbr} }
 let pollTimer = null;
+let lastSig = null;
+let pendingPick = null;   // a tap that was waiting on a PIN prompt
+
+// Saving: every tap becomes a small change ({gameId: team|null}) queued here and
+// sent one at a time, in order. The server merges them, so quick taps can't
+// overwrite each other, and anything that fails to send stays queued and retries.
+const outbox = {};        // 'user|week' -> { gameId: team | null }
+let flushing = false;
+let editEpoch = 0;
+let lastEditAt = 0;
+let retryTimer = null;
+let savedTimer = null;
 
 function fmtKickoff(iso){
   const d = new Date(iso);
@@ -600,6 +683,19 @@ function teamLabel(abbr){
 function buildBuddyRow(){
   const row = document.getElementById('buddyRow');
   row.innerHTML = '';
+  if(guestMode){
+    row.className = 'guest-chip';
+    const label = document.createElement('span');
+    label.textContent = 'Guest · view only';
+    const signIn = document.createElement('button');
+    signIn.type = 'button';
+    signIn.textContent = 'Sign in';
+    signIn.onclick = ()=>{ document.getElementById('whoOverlay').style.display = 'flex'; };
+    row.appendChild(label);
+    row.appendChild(signIn);
+    return;
+  }
+  row.className = 'buddies';
   BUDDIES.forEach(name=>{
     const b = document.createElement('button');
     b.className = 'buddy-btn buddy-' + name.toLowerCase() + (name===currentUser ? ' active' : '');
@@ -632,6 +728,11 @@ function selectBuddy(name){
 }
 
 function finishSelectBuddy(name){
+  if(guestMode){
+    guestMode = false;
+    localStorage.removeItem('h17_guest');
+    if(new URLSearchParams(location.search).has('guest')) history.replaceState(null, '', location.pathname);
+  }
   currentUser = name;
   localStorage.setItem('h17_user', name);
   document.getElementById('whoOverlay').style.display = 'none';
@@ -639,6 +740,25 @@ function finishSelectBuddy(name){
   buildBuddyRow();
   loadWeek(currentWeek);
 }
+
+function enterGuestMode(){
+  guestMode = true;
+  currentUser = null;
+  pendingPick = null;
+  localStorage.setItem('h17_guest', '1');
+  document.getElementById('whoOverlay').style.display = 'none';
+  document.getElementById('pinOverlay').style.display = 'none';
+  buildBuddyRow();
+  loadWeek(currentWeek);
+}
+document.getElementById('whoGuestBtn').addEventListener('click', enterGuestMode);
+
+document.getElementById('guestLinkBtn').addEventListener('click', ()=>{
+  const link = location.origin + '/?guest=1';
+  navigator.clipboard.writeText(link).then(()=>{
+    showToast('Guest link copied — view only, no picks');
+  }).catch(()=>{ showToast(link); });
+});
 
 let pinPromptName = null;
 
@@ -655,6 +775,7 @@ function openPinPrompt(name){
 document.getElementById('pinCancel').addEventListener('click', ()=>{
   document.getElementById('pinOverlay').style.display = 'none';
   pinPromptName = null;
+  pendingPick = null;
 });
 
 document.getElementById('pinForm').addEventListener('submit', async (e)=>{
@@ -686,7 +807,17 @@ document.getElementById('pinForm').addEventListener('submit', async (e)=>{
       const data = await res.json().catch(()=>({}));
       if(data.ok){
         savePin(name, pin);
-        finishSelectBuddy(name);
+        const waiting = pendingPick;
+        pendingPick = null;
+        if(currentUser === name && !guestMode){
+          // already viewing as this person (a tap or a failed save sent us here) — no reload needed
+          document.getElementById('whoOverlay').style.display = 'none';
+          document.getElementById('pinOverlay').style.display = 'none';
+        } else {
+          finishSelectBuddy(name);
+        }
+        if(waiting && waiting.user === name) pick(waiting.gameId, waiting.abbr);
+        flush();
       } else {
         errEl.textContent = 'Incorrect PIN for ' + name + '. Try again.';
         errEl.style.display = 'block';
@@ -734,19 +865,136 @@ async function refreshWeekData(week){
   // Only claim to be "you" server-side if this device actually holds your
   // verified PIN — otherwise the server treats you like anyone else and
   // keeps future picks hidden, even for a name you've merely switched to.
-  const verifiedPin = currentUser ? getSavedPin(currentUser) : null;
+  const user = currentUser;
+  const epochAtStart = editEpoch;
+  const verifiedPin = user ? getSavedPin(user) : null;
   const identityParam = verifiedPin
-    ? '&user=' + encodeURIComponent(currentUser) + '&pin=' + encodeURIComponent(verifiedPin)
+    ? '&user=' + encodeURIComponent(user) + '&pin=' + encodeURIComponent(verifiedPin)
     : '';
   const [gamesDoc, picksDoc] = await Promise.all([
     fetchJson('/api/games?week=' + week),
     fetchJson('/api/picks?week=' + week + identityParam),
   ]);
+  // The person switched week or name while this was loading — drop the stale answer.
+  if(week !== currentWeek || user !== currentUser) return;
+
   weekGames = gamesDoc.games || [];
-  allPicksForWeek = picksDoc || {};
-  myPicks = (currentUser && allPicksForWeek[currentUser]) ? allPicksForWeek[currentUser] : {};
-  renderGames();
+  weekLinesAt = gamesDoc.linesUpdatedAt || null;
+  const incoming = picksDoc || {};
+  // Never let a server copy that predates your latest taps replace what's on screen.
+  const holdMine = user && (flushing || outboxHas(user, week) || editEpoch !== epochAtStart || Date.now() - lastEditAt < 6000);
+  if(holdMine) incoming[user] = myPicks;
+  allPicksForWeek = incoming;
+  myPicks = user ? (incoming[user] || {}) : {};
+  if(lastSig === null || stateSig() !== lastSig) renderGames();
 }
+
+function stateSig(){
+  return JSON.stringify([
+    weekGames.map(g=>[g.id, g.status, g.kickoff, g.spreadDetails, g.overUnder, g.winnerAbbr, g.homeScore, g.awayScore, isLocked(g)]),
+    allPicksForWeek, currentUser, guestMode, weekLinesAt,
+  ]);
+}
+
+function outboxHas(user, week){
+  const o = outbox[user + '|' + week];
+  return !!o && Object.keys(o).length > 0;
+}
+
+function setSaveState(kind, text){
+  const el = document.getElementById('saveState');
+  el.className = 'save-state' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+}
+
+function enqueueChange(user, week, gameId, team){
+  const k = user + '|' + week;
+  (outbox[k] ||= {})[gameId] = team;
+  editEpoch++;
+  lastEditAt = Date.now();
+  flush();
+}
+
+async function flush(){
+  if(flushing) return;
+  if(Object.keys(outbox).length === 0) return;
+  flushing = true;
+  clearTimeout(retryTimer);
+  setSaveState('saving', 'Saving…');
+  let failed = false;
+  try{
+    while(Object.keys(outbox).length){
+      const k = Object.keys(outbox)[0];
+      const [user, weekStr] = k.split('|');
+      const week = parseInt(weekStr, 10);
+      const pin = getSavedPin(user);
+      if(!pin){
+        failed = true;
+        setSaveState('error', 'Enter your PIN to save');
+        if(user === currentUser) openPinPrompt(user);
+        break;
+      }
+      const changes = outbox[k];
+      delete outbox[k];
+
+      let result = null;
+      for(let attempt = 0; attempt < 3 && !result; attempt++){
+        try{
+          const res = await fetch('/api/picks', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ week, user, changes, pin }),
+          });
+          if(res.status === 401){ clearSavedPin(user); result = { authFailed: true }; break; }
+          if(!res.ok) throw new Error('save failed: ' + res.status);
+          result = await res.json();
+        }catch(err){
+          console.error(err);
+          if(attempt < 2) await new Promise(r=>setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
+
+      if(!result || result.authFailed){
+        // keep what didn't send; anything tapped since then wins over the old value
+        outbox[k] = Object.assign({}, changes, outbox[k] || {});
+        failed = true;
+        if(result && result.authFailed){
+          setSaveState('error', 'PIN needs re-entering');
+          showToast('Your saved PIN no longer matches — enter it again');
+          if(user === currentUser) openPinPrompt(user);
+        } else {
+          setSaveState('error', 'Not saved yet — retrying…');
+          retryTimer = setTimeout(flush, 8000);
+        }
+        break;
+      }
+
+      if(result.rejected && result.rejected.length){
+        showToast('That game already kicked off — pick not changed');
+      }
+      // adopt the server's copy once nothing newer is waiting to be sent
+      if(result.picks && user === currentUser && week === currentWeek && !outboxHas(user, week)){
+        myPicks = result.picks;
+        allPicksForWeek[user] = myPicks;
+        renderGames();
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+  if(!failed){
+    setSaveState('saved', 'Saved ✓');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(()=>{ if(!flushing && Object.keys(outbox).length === 0) setSaveState('', ''); }, 2500);
+  }
+}
+
+window.addEventListener('beforeunload', (e)=>{
+  if(flushing || Object.keys(outbox).length){ e.preventDefault(); e.returnValue = ''; }
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') flush();
+});
 
 function stopPolling(){
   if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
@@ -763,6 +1011,7 @@ function startPolling(week){
 
 async function loadWeek(week){
   stopPolling();
+  lastSig = null;
   document.getElementById('weekTitle').textContent = 'Week ' + week;
   document.getElementById('gamesGrid').innerHTML = '<div class="empty-state"><div class="big">Loading…</div></div>';
   scrollWeekIntoView();
@@ -780,42 +1029,43 @@ function isLocked(game){
   return Date.now() >= new Date(game.kickoff).getTime();
 }
 
-async function pick(gameId, abbr){
+function pick(gameId, abbr){
+  if(guestMode){ showToast('Guest view is read-only — sign in to make picks'); return; }
   if(!currentUser){ document.getElementById('whoOverlay').style.display = 'flex'; return; }
   const game = weekGames.find(g=>g.id===gameId);
   if(!game || isLocked(game)) return;
   const pin = getSavedPin(currentUser);
-  if(!pin){ openPinPrompt(currentUser); return; }
+  if(!pin){
+    // remember the tap so it isn't lost once the PIN is entered
+    pendingPick = { user: currentUser, gameId, abbr };
+    openPinPrompt(currentUser);
+    return;
+  }
   const next = Object.assign({}, myPicks);
-  if(next[gameId] === abbr){ delete next[gameId]; } else { next[gameId] = abbr; }
+  let change;
+  if(next[gameId] === abbr){ delete next[gameId]; change = null; } else { next[gameId] = abbr; change = abbr; }
   myPicks = next;
   allPicksForWeek[currentUser] = next;
   renderGames();
-  try{
-    const res = await fetch('/api/picks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ week: currentWeek, user: currentUser, picks: next, pin }),
-    });
-    if(res.status === 401){
-      clearSavedPin(currentUser);
-      showToast('Your saved PIN no longer matches — enter it again');
-      openPinPrompt(currentUser);
-      return;
-    }
-    if(!res.ok) throw new Error('save failed: ' + res.status);
-  }catch(err){
-    console.error(err);
-    showToast('Could not save pick — check your connection');
-  }
+  enqueueChange(currentUser, currentWeek, gameId, change);
+}
+
+function fmtLinesStamp(iso){
+  const d = new Date(iso);
+  return 'Lines updated ' + d.toLocaleDateString(undefined, {weekday:'short'}) + ' ' +
+    d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
 }
 
 function renderGames(){
   const grid = document.getElementById('gamesGrid');
+  document.getElementById('copyBtn').style.display = guestMode ? 'none' : '';
+  document.getElementById('footer').style.display = guestMode ? 'none' : '';
+  document.getElementById('linesStamp').textContent = weekLinesAt ? fmtLinesStamp(weekLinesAt) : '';
   if(!weekGames.length){
     grid.innerHTML = '<div class="empty-state"><div class="big">No games loaded yet</div>This week’s slate hasn’t been populated. Check back soon.</div>';
     document.getElementById('progressLabel').textContent = '';
     document.getElementById('copyBtn').disabled = true;
+    lastSig = stateSig();
     return;
   }
   grid.innerHTML = '';
@@ -848,6 +1098,7 @@ function renderGames(){
         if(myPick === abbr && myPick !== game.winnerAbbr) cls += ' wrong-final';
       }
       if(locked) cls += ' locked';
+      if(guestMode) cls += ' readonly';
       btn.className = cls;
       const rec = side==='home' ? '' : '';
       const others = Object.keys(allPicksForWeek).filter(n => n!==currentUser && allPicksForWeek[n] && allPicksForWeek[n][game.id] === abbr && locked);
@@ -904,9 +1155,10 @@ function renderGames(){
     grid.appendChild(card);
   });
 
-  document.getElementById('progressLabel').textContent = pickedCount + ' of ' + weekGames.length + ' picked';
+  document.getElementById('progressLabel').textContent = guestMode ? 'View only' : pickedCount + ' of ' + weekGames.length + ' picked';
   const copyBtn = document.getElementById('copyBtn');
   copyBtn.disabled = pickedCount === 0;
+  lastSig = stateSig();
 }
 
 document.getElementById('copyBtn').addEventListener('click', ()=>{
@@ -925,10 +1177,81 @@ document.querySelectorAll('.view-btn').forEach(btn=>{
     currentView = btn.dataset.view;
     document.getElementById('picksView').style.display = currentView==='picks' ? 'block' : 'none';
     document.getElementById('leaderboardView').style.display = currentView==='leaderboard' ? 'block' : 'none';
+    document.getElementById('teamsView').style.display = currentView==='teams' ? 'block' : 'none';
     if(currentView === 'leaderboard'){ stopPolling(); renderLeaderboard(); }
+    else if(currentView === 'teams'){ stopPolling(); renderTeamRecords(); }
     else { startPolling(currentWeek); }
   });
 });
+
+let teamBoard = null;
+let teamSort = 'picked';   // 'picked' | 'team' | a buddy's name
+
+async function renderTeamRecords(){
+  const table = document.getElementById('tmTable');
+  table.innerHTML = '<tr><td class="empty-state">Loading…</td></tr>';
+  try{
+    teamBoard = await fetchJson('/api/leaderboard');
+  }catch(err){
+    console.error(err);
+    table.innerHTML = '<tr><td class="empty-state">Couldn\'t load team records</td></tr>';
+    return;
+  }
+  drawTeamTable();
+}
+
+function drawTeamTable(){
+  const table = document.getElementById('tmTable');
+  const recs = (teamBoard && teamBoard.teamRecords) || {};
+  const anyGraded = !!(teamBoard && (teamBoard.activeWeeks || []).length);
+
+  const teams = Object.keys(TEAM_META).map(abbr=>{
+    const per = {};
+    let picks = 0;
+    BUDDIES.forEach(b=>{
+      const r = (recs[abbr] && recs[abbr][b]) || {w:0, l:0};
+      per[b] = r;
+      picks += r.w + r.l;
+    });
+    return { abbr, per, picks, label: TEAM_META[abbr].short || abbr };
+  });
+
+  teams.sort((a,b)=>{
+    if(teamSort === 'team') return a.label.localeCompare(b.label);
+    if(teamSort === 'picked') return (b.picks - a.picks) || a.label.localeCompare(b.label);
+    const ra = a.per[teamSort], rb = b.per[teamSort];
+    const na = ra.w + ra.l, nb = rb.w + rb.l;
+    // teams this person never picked sink to the bottom
+    if((na === 0) !== (nb === 0)) return na === 0 ? 1 : -1;
+    return ((rb.w - rb.l) - (ra.w - ra.l)) || (rb.w - ra.w) || (nb - na) || a.label.localeCompare(b.label);
+  });
+
+  const sortedCls = k => teamSort === k ? ' sorted' : '';
+  let html = '<thead><tr><th class="team-h sortable' + sortedCls('team') + '" data-sort="team">Team</th>';
+  BUDDIES.forEach(b=>{
+    html += '<th class="sortable' + sortedCls(b) + (b === currentUser ? ' me' : '') + '" data-sort="' + b + '">' + b + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  teams.forEach(t=>{
+    html += '<tr><td class="team"><img src="' + (LOGOS[t.abbr] || '') + '" alt="">' + t.label + '</td>';
+    BUDDIES.forEach(b=>{
+      const r = t.per[b];
+      if(r.w + r.l === 0){ html += '<td class="rec-none">–</td>'; return; }
+      const cls = r.w > r.l ? 'rec-pos' : (r.l > r.w ? 'rec-neg' : 'rec-even');
+      html += '<td class="' + cls + '">' + r.w + '-' + r.l + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('th.sortable').forEach(th=>{
+    th.onclick = ()=>{ teamSort = th.dataset.sort; drawTeamTable(); };
+  });
+  document.getElementById('tmSub').textContent = anyGraded
+    ? 'Record when each person picked that team to win (wins-losses, graded games only). Tap a column to sort.'
+    : 'No games graded yet — records fill in as results come in. Tap a column to sort.';
+}
 
 async function renderLeaderboard(){
   const table = document.getElementById('lbTable');
@@ -968,7 +1291,7 @@ async function renderLeaderboard(){
 buildBuddyRow();
 buildWhoGrid();
 buildWeekRow();
-if(!currentUser){ document.getElementById('whoOverlay').style.display = 'flex'; } else { document.getElementById('whoOverlay').style.display = 'none'; }
+if(!currentUser && !guestMode){ document.getElementById('whoOverlay').style.display = 'flex'; } else { document.getElementById('whoOverlay').style.display = 'none'; }
 loadWeek(currentWeek);
 setTimeout(scrollWeekIntoView, 50);
 </script>
