@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { refreshLines } from "./lib/espn.js";
+import { refreshLines, gradeWeek } from "./lib/espn.js";
 
 const YEAR = 2026;
 
@@ -131,41 +131,6 @@ async function buildWeek(week) {
   );
   games.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   return { week, updatedAt: new Date().toISOString(), games };
-}
-
-async function gradeWeek(store, week) {
-  const existing = await store.get(`games/week-${week}`, { type: "json" });
-  if (!existing) return;
-  const board = await fetchScoreboard(week);
-  const byId = {};
-  for (const e of board.events || []) byId[e.id] = e;
-
-  const updatedGames = existing.games.map((g) => {
-    const ev = byId[g.id];
-    if (!ev) return g;
-    const comp = ev.competitions[0];
-    const home = comp.competitors.find((c) => c.homeAway === "home");
-    const away = comp.competitors.find((c) => c.homeAway === "away");
-    const completed = comp.status?.type?.completed || false;
-    let winnerAbbr = null;
-    if (home.winner === true) winnerAbbr = home.team.abbreviation;
-    else if (away.winner === true) winnerAbbr = away.team.abbreviation;
-    // Lines are handled by refreshLines() (pregame only), not here, so a live
-    // in-game line never overwrites the one people actually picked against.
-    return {
-      ...g,
-      status: completed ? "final" : "scheduled",
-      homeScore: completed ? Number(home.score) : null,
-      awayScore: completed ? Number(away.score) : null,
-      winnerAbbr,
-    };
-  });
-
-  await store.setJSON(`games/week-${week}`, {
-    ...existing,
-    games: updatedGames,
-    updatedAt: new Date().toISOString(),
-  });
 }
 
 async function seedWeekIfMissing(store, week) {
