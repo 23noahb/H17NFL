@@ -73,3 +73,40 @@ export async function refreshLines(store, week) {
   });
   return { week, updated };
 }
+
+// Marks finished games final and records scores/winners. Leaves lines alone:
+// those are refreshLines()' job (pregame only), so a live in-game line never
+// replaces the one people actually picked against.
+export async function gradeWeek(store, week) {
+  const existing = await store.get(`games/week-${week}`, { type: "json" });
+  if (!existing?.games?.length) return { week, final: 0 };
+  const board = await fetchScoreboard(week);
+  const byId = {};
+  for (const e of board.events || []) byId[e.id] = e;
+
+  const games = existing.games.map((g) => {
+    const ev = byId[g.id];
+    if (!ev) return g;
+    const comp = ev.competitions[0];
+    const home = comp.competitors.find((c) => c.homeAway === "home");
+    const away = comp.competitors.find((c) => c.homeAway === "away");
+    const completed = comp.status?.type?.completed || false;
+    let winnerAbbr = null;
+    if (home.winner === true) winnerAbbr = home.team.abbreviation;
+    else if (away.winner === true) winnerAbbr = away.team.abbreviation;
+    return {
+      ...g,
+      status: completed ? "final" : "scheduled",
+      homeScore: completed ? Number(home.score) : null,
+      awayScore: completed ? Number(away.score) : null,
+      winnerAbbr,
+    };
+  });
+
+  await store.setJSON(`games/week-${week}`, {
+    ...existing,
+    games,
+    updatedAt: new Date().toISOString(),
+  });
+  return { week, final: games.filter((g) => g.status === "final").length };
+}
