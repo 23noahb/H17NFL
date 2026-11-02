@@ -190,6 +190,17 @@ body{
 .team-btn.locked{cursor:default;}
 .team-btn.correct{outline:2px solid var(--win);outline-offset:-2px;border-radius:8px;}
 .team-btn.wrong-final::after{content:"✗";color:var(--danger);}
+.team-btn.autopick{background:color-mix(in srgb, var(--danger) 9%, transparent);}
+.team-btn.autopick::after{content:"✗";position:absolute;top:8px;right:10px;color:var(--danger);font-weight:700;font-size:13px;}
+.team-btn.tie-loss{background:color-mix(in srgb, var(--danger) 9%, transparent);}
+.team-btn.tie-loss .abbr{color:var(--danger);}
+.tie-banner{
+  text-align:center;padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:0.02em;
+  color:var(--danger);background:color-mix(in srgb, var(--danger) 10%, transparent);
+  border-top:1px solid var(--border);
+}
+.auto-tag{font-size:10px;font-weight:600;color:var(--danger);letter-spacing:0.02em;}
+.pick-chip.auto{background:color-mix(in srgb, var(--danger) 16%, transparent);color:var(--danger);}
 .at-divider{
   display:flex;align-items:center;justify-content:center;
   font-family:'Oswald';font-size:11px;color:var(--text-faint);
@@ -1088,24 +1099,36 @@ function renderGames(){
 
     const teamsRow = document.createElement('div');
     teamsRow.className = 'teams-row';
+    // A finished game nobody picked is counted as a pick on the losing team.
+    // Derived here, never saved, so stored picks stay exactly as people made them.
+    const loserAbbr = (game.status === 'final' && game.winnerAbbr)
+      ? (game.winnerAbbr === game.homeAbbr ? game.awayAbbr : game.homeAbbr) : null;
+    const realPickOf = n => (allPicksForWeek[n] && allPicksForWeek[n][game.id]) || null;
+    // A tie has no winner, so every pick (or missed pick) on it is a loss.
+    const isTie = game.status === 'final' && !game.winnerAbbr;
     [ ['away', game.awayAbbr], ['home', game.homeAbbr] ].forEach(([side, abbr])=>{
       const btn = document.createElement('button');
+      const isAuto = !!(loserAbbr && abbr === loserAbbr && currentUser && !guestMode && !myPick);
       let cls = 'team-btn';
       if(myPick === abbr) cls += ' picked';
+      if(isAuto) cls += ' autopick';
       if(myPick && myPick !== abbr) cls += ' loser';
       if(game.status === 'final'){
         if(game.winnerAbbr === abbr) cls += ' correct';
         if(myPick === abbr && myPick !== game.winnerAbbr) cls += ' wrong-final';
+        if(isTie && myPick === abbr) cls += ' tie-loss';
       }
       if(locked) cls += ' locked';
       if(guestMode) cls += ' readonly';
       btn.className = cls;
-      const rec = side==='home' ? '' : '';
-      const others = Object.keys(allPicksForWeek).filter(n => n!==currentUser && allPicksForWeek[n] && allPicksForWeek[n][game.id] === abbr && locked);
+      const chips = BUDDIES.filter(n => n !== currentUser && locked && (
+        realPickOf(n) === abbr || (!realPickOf(n) && loserAbbr === abbr)
+      ));
       btn.innerHTML = '<img src="' + (LOGOS[abbr]||'') + '" alt="' + abbr + '">' +
         '<span class="abbr">' + abbr + '</span>' +
         '<span class="rec">' + teamLabel(abbr) + '</span>' +
-        (others.length ? '<span class="others-picked">' + others.map(n=>'<span class="pick-chip">'+n.slice(0,1)+'</span>').join('') + '</span>' : '');
+        (isAuto ? '<span class="auto-tag">No pick · counts as a loss</span>' : '') +
+        (chips.length ? '<span class="others-picked">' + chips.map(n=>'<span class="pick-chip' + (realPickOf(n) ? '' : ' auto') + '" title="' + (realPickOf(n) ? n : n + ' (no pick)') + '">'+n.slice(0,1)+'</span>').join('') + '</span>' : '');
       btn.disabled = locked && myPick !== abbr;
       btn.onclick = ()=>{ if(!locked) pick(game.id, abbr); };
       teamsRow.appendChild(btn);
@@ -1123,6 +1146,13 @@ function renderGames(){
       fs.className = 'final-score';
       fs.textContent = game.awayAbbr + ' ' + game.awayScore + ' – ' + game.homeScore + ' ' + game.homeAbbr;
       card.appendChild(fs);
+      if(isTie){
+        const tie = document.createElement('div');
+        tie.className = 'tie-banner';
+        tie.textContent = 'TIE · counts as a loss for everyone' +
+          ((currentUser && !guestMode && !myPick) ? ' (you had no pick)' : '');
+        card.appendChild(tie);
+      }
     } else {
       const info = document.createElement('div');
       info.className = 'info-row';
