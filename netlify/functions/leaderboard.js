@@ -42,9 +42,14 @@ export default async () => {
       games.forEach((g) => {
         const pick = picks[g.id];
         if (pick === g.winnerAbbr) correct++;
-        if (pick && (pick === g.homeAbbr || pick === g.awayAbbr)) {
-          const rec = ((teamRecords[pick] ||= {})[name] ||= { w: 0, l: 0 });
-          if (pick === g.winnerAbbr) rec.w++;
+        // A game with no pick is treated as a pick on the losing team (already
+        // a loss in the standings above); a tie has no loser, so nothing to assign.
+        let teamPicked = null;
+        if (pick && (pick === g.homeAbbr || pick === g.awayAbbr)) teamPicked = pick;
+        else if (!pick && g.winnerAbbr) teamPicked = g.winnerAbbr === g.homeAbbr ? g.awayAbbr : g.homeAbbr;
+        if (teamPicked) {
+          const rec = ((teamRecords[teamPicked] ||= {})[name] ||= { w: 0, l: 0 });
+          if (teamPicked === g.winnerAbbr) rec.w++;
           else rec.l++;
         }
       });
