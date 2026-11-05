@@ -10,8 +10,10 @@ A weekly NFL pick'em site for the group, built as a static frontend + Netlify Fu
 - "Copy My Picks" copies that week's picks as a short list of team abbreviations.
 - A season-long leaderboard shows each person's record (wins-losses) per week and overall, updated automatically once games go final.
 - A **By Team** tab shows every team's record for each person: how Noah has done every time he picked the Lions, and so on. Tap a column to sort.
+- A **Primetime** section on the Leaderboard tab shows each person's record on Thursday, Sunday and Monday night games (TNF / SNF / MNF) plus a game-by-game log of everyone's pick and result. Slots are decided by kickoff day and time in Eastern time (Thu/Sun/Mon at 7pm ET or later), so the Wednesday-night season opener, Sunday afternoons and Thanksgiving daytime games aren't counted. Same rule as the standings: a missed pick or a tie is a loss.
 - **Guest view:** anyone can look without picking. "View as guest" in the name picker, or share the link from the button at the bottom of the page (`/?guest=1`). Guests can see games, the leaderboard and the team records, but can't pick or change anything, and still only see other people's picks after kickoff.
 - Lines (spread / over-under) refresh every morning with the daily sync, plus an extra refresh on **Thursday and Sunday mornings** (~8am ET). Each refresh only touches games that haven't kicked off, so a live in-game line never replaces the one people picked against. The page shows when lines were last updated.
+- **Missed picks:** a finished game nobody picked is counted as a pick on the *losing* team. It was already a loss in the standings; now it also lands on that team's row in By Team, and the card shows "No pick · counts as a loss" (red chips mark who missed). This is worked out when displaying, never saved, so stored picks are untouched. A tie is a loss for everyone (neither team won), and its card is flagged with a red "TIE · counts as a loss" bar; since there's no losing team, a tie can't be assigned to a team for someone who didn't pick it.
 - Picks save one at a time, in order, with a "Saving… / Saved" indicator. Anything that fails to send stays queued and retries; the server also refuses changes to games that have already kicked off.
 - A scheduled job refreshes data daily: grades finished games and stages the next week's slate, so no one has to update anything by hand.
 
@@ -24,7 +26,8 @@ A weekly NFL pick'em site for the group, built as a static frontend + Netlify Fu
 - `netlify/functions/leaderboard.js` — compute season standings
 - `netlify/functions/sync-week.js` — scheduled job (daily) that grades finished games, seeds upcoming weeks from ESPN, and refreshes lines
 - `netlify/functions/refresh-lines.js` — scheduled job (Thursday + Sunday mornings) that refreshes spreads/over-unders
-- `netlify/functions/lib/espn.js` — shared ESPN helpers (line refresh, current-week lookup)
+- `netlify/functions/grade-sunday-afternoon.js` / `grade-sunday-evening.js` — scheduled grade-only runs on Sundays after the 1pm games (4:30pm ET) and after the late-afternoon games (7:30pm ET)
+- `netlify/functions/lib/espn.js` — shared ESPN helpers (grading, line refresh, current-week lookup); `lib/grade-run.js` is the grade-only runner the two Sunday jobs share
 - Data lives in **Netlify Blobs** (`h17-nfl` store) — no external database needed
 
 Everything at the repo's top level (`index.html`, the `.png` files, `netlify.toml`, etc.) gets served as-is — `netlify.toml` sets `publish = "."`. The one folder that has to stay exactly where it is is `netlify/functions/`.
@@ -41,7 +44,7 @@ This repo is managed by dragging files into GitHub's web upload, not git command
 
 1. Create a GitHub repo and upload everything in this folder, preserving the `netlify/functions/` folder structure.
 2. In Netlify: **Add new site → Import an existing project → GitHub**, pick the repo. Build settings come from `netlify.toml` — no changes needed. Deploy.
-3. Netlify auto-detects `netlify/functions/sync-week.js`'s `export const config = { schedule: "17 11 * * *" }` and registers it as a scheduled function (runs daily ~7:17am ET). No extra setup.
+3. Netlify auto-detects `netlify/functions/sync-week.js`'s `export const config = { schedule: "17 11 * * *" }` and registers it as a scheduled function (runs daily at 11:17 UTC, which is 6:17am EST / 7:17am EDT). No extra setup.
 4. **Populate Week 1 immediately** instead of waiting for the next scheduled run: in the Netlify dashboard, find `sync-week` under Functions/Logs & metrics and trigger it manually. This builds and stores Week 1 (and pre-stages Week 2) right away.
 5. Open the deployed site URL, pick your name, and you're live. Share the URL with Joe, Loop, Noah, and Tom.
 
@@ -49,7 +52,7 @@ No API keys or accounts needed anywhere in this stack — ESPN's public scoreboa
 
 ## Notes / limitations
 
-- Grading and next-week setup happen once a day (~7:17am ET). Monday Night Football results are typically graded by the next morning, not instantly at final whistle.
+- Results are graded on a schedule, in UTC (Netlify cron has no timezone setting), so the Eastern times shift an hour when clocks change. In EST (Nov through the end of the season): daily sync 6:17am ET (also seeds the next week and picks up SNF and MNF); Sundays 4:30pm ET (after the 1pm games) and 7:30pm ET (after the late-afternoon games); Thursday/Sunday lines refresh 7:00am ET. A game that runs long past a checkpoint is simply picked up by the next one.
 - "Last 3 meetings" looks back up to 5 seasons for the two teams' most recent meetings; brand-new or rarely-scheduled matchups may show fewer than 3.
 - The PIN system is lightweight by design (hashed server-side, but no password reset flow, no email/SMS recovery). If someone forgets theirs, the fix today is manually clearing `auth/<name>` from the Netlify Blobs store so they can re-claim it. Since PINs were added after the group had already been picking without one, whoever first opens a given name after this update effectively claims its PIN — have everyone claim their own name promptly after deploying this.
 - Because `publish = "."`, the `netlify/functions/*.js` source files are also reachable as plain static files if someone knows the path. Nothing secret lives in them (no API keys), so this is a cosmetic tradeoff for a simpler upload workflow, not a security issue.
