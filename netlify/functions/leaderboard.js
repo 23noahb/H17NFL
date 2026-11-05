@@ -2,6 +2,27 @@ import { getStore } from "@netlify/blobs";
 
 const BUDDIES = ["Joe", "Loop", "Noah", "Tom"];
 
+// Which primetime window a kickoff falls in, by Eastern-time weekday and hour:
+// Thursday / Sunday / Monday at 7pm ET or later. Anything else (Sunday
+// afternoons, Thanksgiving daytime, the Wednesday season opener) is not one of
+// the three slots. Done in America/New_York so daylight saving can't shift it.
+const ET_PARTS = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "numeric",
+  hourCycle: "h23",
+});
+const SLOT_BY_DAY = { Thu: "TNF", Sun: "SNF", Mon: "MNF" };
+const SLOTS = ["TNF", "SNF", "MNF"];
+
+function primetimeSlot(kickoffIso) {
+  const t = new Date(kickoffIso);
+  if (Number.isNaN(t.getTime())) return null;
+  const parts = Object.fromEntries(ET_PARTS.formatToParts(t).map((p) => [p.type, p.value]));
+  if (parseInt(parts.hour, 10) < 19) return null;
+  return SLOT_BY_DAY[parts.weekday] || null;
+}
+
 export default async () => {
   const store = getStore({ name: "h17-nfl", consistency: "strong" });
   const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -60,7 +81,42 @@ export default async () => {
     return { name, total, graded, perWeek };
   }).sort((a, b) => b.total - a.total);
 
-  return new Response(JSON.stringify({ activeWeeks, rows, teamRecords }), {
+  // Primetime: every finished TNF / SNF / MNF game, how each person did on it,
+  // and each person's record per slot. Same rule as the standings: a missed pick
+  // or a tie is a loss.
+  const primetimeRecords = Object.fromEntries(
+    BUDDIES.map((n) => [n, Object.fromEntries(SLOTS.map((sl) => [sl, { w: 0, l: 0 }]))])
+  );
+  const primetimeGames = [];
+  activeWeeks.forEach((w) => {
+    gamesByWeek[w].forEach((g) => {
+      if (g.status !== "final") return;
+      const slot = primetimeSlot(g.kickoff);
+      if (!slot) return;
+      const picks = {};
+      BUDDIES.forEach((name) => {
+        const pick = picksByUserWeek[`${name}-${w}`]?.[g.id] || null;
+        const win = !!pick && pick === g.winnerAbbr;
+        primetimeRecords[name][slot][win ? "w" : "l"]++;
+        picks[name] = { pick, win };
+      });
+      primetimeGames.push({
+        week: w,
+        slot,
+        kickoff: g.kickoff,
+        away: g.awayAbbr,
+        home: g.homeAbbr,
+        awayScore: g.awayScore,
+        homeScore: g.homeScore,
+        winner: g.winnerAbbr || null,
+        picks,
+      });
+    });
+  });
+  primetimeGames.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  const primetime = { slots: SLOTS, records: primetimeRecords, games: primetimeGames };
+
+  return new Response(JSON.stringify({ activeWeeks, rows, teamRecords, primetime }), {
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 };
