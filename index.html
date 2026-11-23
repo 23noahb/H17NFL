@@ -331,12 +331,20 @@ table.tm td.rec-none{color:var(--text-faint);}
 .lb-head{padding:18px 20px 4px;}
 .lb-head h2{font-family:'Oswald';text-transform:uppercase;font-size:18px;margin:0 0 4px;}
 .lb-head p{color:var(--text-faint);font-size:12.5px;margin:0 0 12px;}
-table.lb{width:100%;border-collapse:collapse;font-size:13px;}
+table.lb{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;}
 table.lb th, table.lb td{padding:9px 12px;text-align:center;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;}
 table.lb th{color:var(--text-faint);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;position:sticky;top:0;background:var(--surface);}
 table.lb td.name{text-align:left;font-family:'Oswald';font-weight:600;font-size:14px;letter-spacing:0.02em;}
 table.lb td.rank{color:var(--text-faint);font-weight:700;width:28px;}
 table.lb tr.leader td.name{color:var(--accent);}
+#lbTable td, #lbTable th{white-space:nowrap;}
+/* Standings: keep the Buddy name pinned while the week columns scroll sideways. */
+#lbTable td.name, #lbTable th.name-h{
+  position:sticky;left:0;background:var(--surface);
+  box-shadow:1px 0 0 var(--border), 8px 0 10px -8px rgba(0,0,0,0.45);
+}
+#lbTable td.name{z-index:1;}
+#lbTable th.name-h{z-index:2;}
 table.lb td.total{font-weight:700;color:var(--text);background:var(--surface-2);}
 .lb-scroll{overflow-x:auto;}
 .empty-state{padding:60px 20px;text-align:center;color:var(--text-faint);}
@@ -1327,7 +1335,7 @@ async function renderLeaderboard(){
   const activeWeeks = data.activeWeeks || [];
   const rows = data.rows || [];
 
-  let html = '<thead><tr><th></th><th style="text-align:left;">Buddy</th>';
+  let html = '<thead><tr><th></th><th class="name-h" style="text-align:left;">Buddy</th>';
   activeWeeks.forEach(w=> html += '<th>W'+w+'</th>');
   html += '<th>Total</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
